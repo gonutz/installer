@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 )
@@ -149,12 +150,9 @@ func runProgram(path string) error {
 func createFolder(path string) error {
 	info, err := os.Stat(path)
 
-	if err.(*os.PathError).Err == os.ErrNotExist {
+	if err != nil {
 		// create the folder if there is no such file
 		return os.Mkdir(path, 0666)
-	} else if err != nil {
-		// report other errors because the file may already exists in this case
-		return err
 	}
 
 	// at this point err is nil so we can check the file info
@@ -236,7 +234,7 @@ func installGo() error {
 	stopProgress()
 
 	gopath := userPath("Documents", "gocode")
-	startProgress("Createing GOPATH in\n" + gopath)
+	startProgress("Creating GOPATH in\n" + gopath)
 	if err := createFolder(gopath); err != nil {
 		return err
 	}
