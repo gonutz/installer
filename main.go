@@ -319,4 +319,6 @@ func stopProgress() {
 func inform(about, msg string) {
 	fmt.Println("***", about, "***")
 	fmt.Println(msg)
+	fmt.Println("Press ENTER to continue...")
+	fmt.Scanln()
 }
