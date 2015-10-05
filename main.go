@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 )
@@ -32,6 +31,11 @@ func main() {
 
 		if choice == 1 {
 			if err := installGo(); err != nil {
+				fmt.Println("Error:", err)
+			}
+		}
+		if choice == 2 {
+			if err := installMinGW(); err != nil {
 				fmt.Println("Error:", err)
 			}
 		}
@@ -215,6 +219,11 @@ func installEverything() error {
 
 func installGo() error {
 	defer stopProgress()
+
+	goIsAlreadyInstalled := exec.Command("go", "version").Run() == nil
+	if goIsAlreadyInstalled {
+		return errors.New("Go is already installed")
+	}
 
 	goURL := go64URL
 	if is32BitSystem() {
