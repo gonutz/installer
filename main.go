@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"io"
@@ -8,34 +10,51 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 )
 
 const (
-	go64URL    = `https://storage.googleapis.com/golang/go1.5.1.windows-amd64.msi`
-	go32URL    = `https://storage.googleapis.com/golang/go1.5.1.windows-386.msi`
-	mingw32URL = `http://downloads.sourceforge.net/project/mingw/Installer/mingw-get-setup.exe?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fmingw%2Ffiles%2F&ts=1444041541&use_mirror=heanet`
-	mingw64URL = `http://downloads.sourceforge.net/project/mingw-w64/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/mingw-w64-install.exe?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fmingw-w64%2F&ts=1444041784&use_mirror=netcologne`
-	msysBin    = `C:\MinGW\msys\1.0\bin`
-	mingw32bin = `C:\MinGW\bin`
-	mingw64bin = `C:\Program Files\mingw-w64\x86_64-4.9.0-win32-seh-rt_v3-rev2\mingw64\bin`
+	go64URL            = `https://storage.googleapis.com/golang/go1.5.1.windows-amd64.msi`
+	go32URL            = `https://storage.googleapis.com/golang/go1.5.1.windows-386.msi`
+	mingw32URL         = `http://downloads.sourceforge.net/project/mingw/Installer/mingw-get-setup.exe?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fmingw%2Ffiles%2F&ts=1444041541&use_mirror=heanet`
+	mingw64URL         = `http://downloads.sourceforge.net/project/mingw-w64/Toolchains%20targetting%20Win32/Personal%20Builds/mingw-builds/installer/mingw-w64-install.exe?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fmingw-w64%2F&ts=1444041784&use_mirror=netcologne`
+	msysBin            = `C:\MinGW\msys\1.0\bin`
+	mingw32bin         = `C:\MinGW\bin`
+	mingw64bin         = `C:\Program Files\mingw-w64\x86_64-4.9.0-win32-seh-rt_v3-rev2\mingw64\bin`
+	git32URL           = `https://github.com/git-for-windows/git/releases/download/v2.6.1.windows.1/Git-2.6.1-32-bit.exe`
+	git64URL           = `https://github.com/git-for-windows/git/releases/download/v2.6.1.windows.1/Git-2.6.1-64-bit.exe`
+	sdl2URL            = `https://www.libsdl.org/release/SDL2-devel-2.0.3-mingw.tar.gz`
+	mingw32includePath = `C:\MinGW\include`
+	mingw32libPath     = `C:\MinGW\lib`
+	mingw64includePath = `C:\Program Files\mingw-w64\x86_64-4.9.0-win32-seh-rt_v3-rev2\mingw64\x86_64-w64-mingw32\include`
+	mingw64libPath     = `C:\Program Files\mingw-w64\x86_64-4.9.0-win32-seh-rt_v3-rev2\mingw64\x86_64-w64-mingw32\lib`
+	sdl2imageURL       = `https://www.libsdl.org/projects/SDL_image/release/SDL2_image-devel-2.0.0-mingw.tar.gz`
+	sdl2ttfURL         = `https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-devel-2.0.12-mingw.tar.gz`
+	sdl2mixerURL       = `https://www.libsdl.org/projects/SDL_mixer/release/SDL2_mixer-devel-2.0.0-mingw.tar.gz`
 )
 
 func main() {
 	for {
-		fmt.Println("(1) install Go  (2) install MinGW")
+		fmt.Println("(1) install Go  (2) install MinGW  (3) install Git  (4) install SDL2")
+		fmt.Println("(5) * install everything *")
 		var choice int
 		fmt.Scanf("%d\n", &choice)
 
-		if choice == 1 {
-			if err := installGo(); err != nil {
-				fmt.Println("Error:", err)
-			}
+		installFuncs := []func() error{
+			nil,
+			installGo,
+			installMinGW,
+			installGit,
+			installSDL2,
+			installEverything,
 		}
-		if choice == 2 {
-			if err := installMinGW(); err != nil {
+
+		if choice >= 1 && choice < len(installFuncs) {
+			install := installFuncs[choice]
+			if err := install(); err != nil {
 				fmt.Println("Error:", err)
 			}
 		}
@@ -194,24 +213,32 @@ func userPath(path ...string) string {
 // download MinGW, 32 or 64 bit
 // install MinGW
 // modify PATH to include msys/bin and mingw/bin
+//
+// download git
+// install git with PATH modification
+//
 // download SDL2_*
 // unzip SDL2_*
 // copy SDL2_* headers to mingw/include/SDL2
 // copy SDL2_* lib to mingw/lib
 // copy SDL2_* dlls to C:\Windows\System
-// download git
-// install git
 // run go get github.com/gonutz/prototype/draw
 // maybe run a sample to be sure
 func installEverything() error {
-	defer stopProgress()
-
-	if err := installGo(); err != nil {
-		return err
+	installFuncs := []func() error{
+		installGo,
+		installMinGW,
+		installGit,
 	}
 
-	if err := installMinGW(); err != nil {
-		return err
+	for _, install := range installFuncs {
+		if err := install(); err != nil {
+			if isAlreadyInstalledError(err) {
+				inform("NOTE: skipping this component", err.Error())
+			} else {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -222,7 +249,7 @@ func installGo() error {
 
 	goIsAlreadyInstalled := exec.Command("go", "version").Run() == nil
 	if goIsAlreadyInstalled {
-		return errors.New("Go is already installed")
+		return ErrAlreadyInstalled("Go")
 	}
 
 	goURL := go64URL
@@ -250,18 +277,32 @@ func installGo() error {
 	if err := setEnvVariable("GOPATH", gopath); err != nil {
 		return err
 	}
+	return addToPath(filepath.Join(gopath, "bin"))
+}
+
+func addToPath(add string) error {
 	path := os.Getenv("PATH")
-	binPath := filepath.Join(gopath, "bin")
-	if !strings.Contains(path, binPath) {
-		newPath := path + ";" + binPath
+	alreadyInPath := strings.Contains(path, add+";") ||
+		strings.Contains(path, `"`+add+`";`) ||
+		strings.HasSuffix(path, add) ||
+		strings.HasSuffix(path, `"`+add+`"`)
+	if !alreadyInPath {
+		newPath := path + ";" + add
 		return setEnvVariable("PATH", newPath)
 	}
-
 	return nil
 }
 
 func installMinGW() error {
 	defer stopProgress()
+
+	mingwBin := mingw64bin
+	if is32BitSystem() {
+		mingwBin = mingw32bin
+	}
+	if folderExists(msysBin) && folderExists(mingwBin) {
+		return ErrAlreadyInstalled("MinGW and msys")
+	}
 
 	mingw32 := userPath("Downloads", "mingw32setup.exe")
 	startProgress("Copying MinGW Setup (32 Bit) to\n" + mingw32)
@@ -277,7 +318,19 @@ On the second page, uncheck support for the graphical user interface.`)
 	}
 	stopProgress()
 
-	if !is32BitSystem() {
+	startProgress("Modifying PATH to include msys")
+	if err := addToPath(msysBin); err != nil {
+		return err
+	}
+	stopProgress()
+
+	if is32BitSystem() {
+		startProgress("Modifying PATH to include MinGW")
+		if err := addToPath(mingw32bin); err != nil {
+			return err
+		}
+		stopProgress()
+	} else {
 		mingw64 := userPath("Downloads", "mingw64setup.exe")
 		startProgress("Copying MinGW Setup (64 Bit) to\n" + mingw64)
 		if err := ioutil.WriteFile(mingw64, mingwW64InstallExe[:], 0666); err != nil {
@@ -290,9 +343,254 @@ On the second page, uncheck support for the graphical user interface.`)
 			return err
 		}
 		stopProgress()
+
+		startProgress("Modifying PATH to include MinGW")
+		if err := addToPath(mingw64bin); err != nil {
+			return err
+		}
+		stopProgress()
 	}
 
 	return nil
+}
+
+func folderExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
+
+func installGit() error {
+	defer stopProgress()
+
+	gitIsAlreadyInstalled := exec.Command("git", "version").Run() == nil
+	if gitIsAlreadyInstalled {
+		return ErrAlreadyInstalled("Git")
+	}
+
+	gitURL := git64URL
+	if is32BitSystem() {
+		gitURL = git32URL
+	}
+	gitInstaller := userPath("Downloads", "git_installer.exe")
+	stop := startProgress("Downloading Git from\n" + gitURL + "\nto\n" + gitInstaller)
+	if err := download(gitURL, gitInstaller, observeProgress, stop); err != nil {
+		return err
+	}
+	stopProgress()
+
+	inform("Installing Git", `In the setup please choose the option
+"Use Git from the Windows Command Prompt"
+and leave all other settings on default.`)
+
+	startProgress("Installing Git")
+	return runProgram(gitInstaller)
+}
+
+func installSDL2() error {
+	defer stopProgress()
+
+	sdl2 := userPath("Downloads", "sdl2.tar.gz")
+	stop := startProgress("Downloading SDL2 library from\n" + sdl2URL + "\nto\n" + sdl2)
+	if err := download(sdl2URL, sdl2, observeProgress, stop); err != nil {
+		return err
+	}
+
+	file, err := os.Open(sdl2)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	unzip, err := gzip.NewReader(file)
+	if err != nil {
+		return err
+	}
+
+	includePath := mingw64includePath
+	if is32BitSystem() {
+		includePath = mingw32includePath
+	}
+	includePath = filepath.Join(includePath, "SDL2")
+	if err := createFolder(includePath); err != nil {
+		return err
+	}
+
+	libPath := mingw64libPath
+	if is32BitSystem() {
+		libPath = mingw32libPath
+	}
+
+	systemPath := `C:\Windows\System32`
+
+	tarReader := tar.NewReader(unzip)
+	copyFile := func(folder, filename string) error {
+		file, err := os.Create(filepath.Join(folder, filename))
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(file, tarReader)
+		return err
+	}
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if !header.FileInfo().IsDir() &&
+			path.Dir(header.Name) == `SDL2-2.0.3/include` {
+			if err := copyFile(includePath, path.Base(header.Name)); err != nil {
+				return err
+			}
+		} else if !header.FileInfo().IsDir() &&
+			(path.Dir(header.Name) == `SDL2-2.0.3/lib/x86` && is32BitSystem()) ||
+			(path.Dir(header.Name) == `SDL2-2.0.3/lib/x64` && !is32BitSystem()) {
+			if err := copyFile(libPath, path.Base(header.Name)); err != nil {
+				return err
+			}
+		} else if path.Base(header.Name) == "SDL2.dll" {
+			if is32BitSystem() &&
+				path.Dir(header.Name) == `SDL2-2.0.3/i686-w64-mingw32/bin` {
+				if err := copyFile(systemPath, path.Base(header.Name)); err != nil {
+					return err
+				}
+			} else if !is32BitSystem() &&
+				path.Dir(header.Name) == `SDL2-2.0.3/x86_64-w64-mingw32/bin` {
+				if err := copyFile(systemPath, path.Base(header.Name)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	libs := []sdl2lib{
+		{sdl2imageURL, "image"},
+		{sdl2ttfURL, "ttf"},
+		{sdl2mixerURL, "mixer"},
+	}
+	for _, lib := range libs {
+		if err := installSDL2lib(lib); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type sdl2lib struct {
+	url  string
+	name string
+}
+
+func installSDL2lib(lib sdl2lib) error {
+	defer stopProgress()
+
+	archivePath := userPath("Downloads", "sdl2"+lib.name+".tar.gz")
+	stop := startProgress("Downloading SDL2_" + lib.name + " library from\n" +
+		lib.url + "\nto\n" + archivePath)
+	if err := download(lib.url, archivePath, observeProgress, stop); err != nil {
+		return err
+	}
+
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	unzip, err := gzip.NewReader(file)
+	if err != nil {
+		return err
+	}
+
+	includePath := mingw64includePath
+	if is32BitSystem() {
+		includePath = mingw32includePath
+	}
+	includePath = filepath.Join(includePath, "SDL2")
+
+	libPath := mingw64libPath
+	if is32BitSystem() {
+		libPath = mingw32libPath
+	}
+
+	systemPath := `C:\Windows\System32`
+
+	tarReader := tar.NewReader(unzip)
+
+	var topLevelFolderName string
+	var expectedPathStart string
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if topLevelFolderName == "" {
+			topLevelFolderName = header.Name
+			expectedPathStart = topLevelFolderName + "x86_64-w64-mingw32"
+			if is32BitSystem() {
+				expectedPathStart = topLevelFolderName + "i686-w64-mingw32"
+			}
+		}
+
+		if strings.HasPrefix(path.Dir(header.Name), expectedPathStart) {
+			if path.Base(header.Name) == "SDL_"+lib.name+".h" {
+				if err := writeToFile(tarReader, includePath,
+					path.Base(header.Name)); err != nil {
+					return err
+				}
+			}
+			if path.Base(header.Name) == "libSDL2_"+lib.name+".a" ||
+				path.Base(header.Name) == "libSDL2_"+lib.name+".dll.a" ||
+				path.Base(header.Name) == "libSDL2_"+lib.name+".la" {
+				if err := writeToFile(tarReader, libPath,
+					path.Base(header.Name)); err != nil {
+					return err
+				}
+			}
+			if path.Dir(header.Name) == expectedPathStart+"/bin" &&
+				strings.HasSuffix(header.Name, ".dll") {
+				if err := writeToFileIfNotThere(tarReader, systemPath,
+					path.Base(header.Name)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func writeToFile(r io.Reader, folder, filename string) error {
+	file, err := os.Create(filepath.Join(folder, filename))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, r)
+	return err
+}
+
+func writeToFileIfNotThere(r io.Reader, folder, filename string) error {
+	path := filepath.Join(folder, filename)
+	if _, err := os.Stat(path); err == nil {
+		// no error, so the file info was retrieved, so the file is there
+		return nil
+	}
+	return writeToFile(r, folder, filename)
 }
 
 func startProgress(desc string) (stopSignal <-chan struct{}) {
@@ -321,4 +619,15 @@ func inform(about, msg string) {
 	fmt.Println(msg)
 	fmt.Println("Press ENTER to continue...")
 	fmt.Scanln()
+}
+
+type ErrAlreadyInstalled string
+
+func (e ErrAlreadyInstalled) Error() string {
+	return string(e) + " is already installed"
+}
+
+func isAlreadyInstalledError(err error) bool {
+	_, ok := err.(ErrAlreadyInstalled)
+	return ok
 }
