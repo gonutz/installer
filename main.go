@@ -114,6 +114,13 @@ and leave all other options on default.`),
 
 	installMercurial = task.Inform("TODO install Mercurial")
 
+	installLiteIDE = task.FailOnFirstError("Install LiteIDE", []task.Task{
+		task.Download(
+			`downloads.sourceforge.net/project/liteide/X23.2/liteidex23.2.windows.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fliteide%2Ffiles%2FX23.2%2F&ts=1444238477&use_mirror=skylink`,
+			userPath("Downloads", "liteide23.2.zip"),
+		),
+	})
+
 	installSDL2 = task.Inform("TODO install SDL2")
 
 	installEverything = task.ContinueAfterError("Install Everything", []task.Task{
@@ -121,6 +128,7 @@ and leave all other options on default.`),
 		installMinGW,
 		installGit,
 		installMercurial,
+		installLiteIDE,
 		installSDL2,
 	})
 )
