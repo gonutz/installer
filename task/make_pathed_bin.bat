@@ -1,0 +1,1 @@
+bin2go -s -p=task pathed.exe

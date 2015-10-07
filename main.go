@@ -1,6 +1,156 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
+	"github.com/gonutz/installer/task"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+)
+
+func main() {
+	for {
+		tasks := []task.Task{
+			installGo,
+			installMinGW,
+			installGit,
+			installSDL2,
+			installMercurial,
+			installEverything,
+		}
+
+		for i, task := range tasks {
+			fmt.Printf("(%v) %v\n", i+1, task.Name())
+		}
+
+		var choice int
+		fmt.Scanf("%d\n", &choice)
+		if choice >= 1 && choice <= len(tasks) {
+			task := tasks[choice-1]
+			if err := task.Execute(); err != nil {
+				fmt.Println("Error:", err)
+			}
+		}
+	}
+}
+
+var (
+	installGo = task.FailOnFirstError("Install Go", []task.Task{
+		task.Check(
+			func() bool { return exec.Command("go", "version").Run() != nil },
+			"Go is already installed",
+		),
+		task.Conditional(
+			is32BitSystem,
+			task.Download(
+				`https://storage.googleapis.com/golang/go1.5.1.windows-386.msi`,
+				userPath("Downloads", "go_installer.msi"),
+			),
+			task.Download(
+				`https://storage.googleapis.com/golang/go1.5.1.windows-amd64.msi`,
+				userPath("Downloads", "go_installer.msi"),
+			),
+		),
+		task.RunProgram(userPath("Downloads", "go_installer.msi")),
+		task.CreateFolder(userPath("Documents", "gocode")),
+		task.SetEnv("GOPATH", userPath("Documents", "gocode")),
+		task.AddToPathEnv(userPath("Documents", "gocode", "bin")),
+	})
+
+	installMinGW = task.FailOnFirstError("Install MinGW", []task.Task{
+		task.Check(
+			func() bool { return exec.Command("gcc", "-v").Run() != nil },
+			"GCC is already installed",
+		),
+		task.WriteFile(
+			userPath("Downloads", "mingw32setup.exe"),
+			bytes.NewReader(mingwGetSetupExe),
+		),
+		task.Inform(`Please install into the default direcotry (C:\MinGW).
+On the second page, uncheck support for the graphical user interface.`),
+		task.RunProgram(userPath("Downloads", "mingw32setup.exe")),
+		task.AddToPathEnv(`C:\MinGW\msys\1.0\bin`),
+		task.Conditional(
+			is32BitSystem,
+			task.FailOnFirstError("Installing GCC (32 Bit)", []task.Task{
+				task.AddToPathEnv(`C:\MinGW\bin`),
+				task.RunProgram(`C:\MinGW\bin\mingw-get.exe`, "install", "gcc"),
+			}),
+			task.FailOnFirstError("Installing MinGW (64 Bit)", []task.Task{
+				task.WriteFile(
+					userPath("Downloads", "mingw64setup.exe"),
+					bytes.NewReader(mingwW64InstallExe),
+				),
+				task.Inform("On the second page choose Architecture=x86_64"),
+				task.RunProgram(userPath("Downloads", "mingw64setup.exe")),
+				task.AddToPathEnv(mingw64binFolder()),
+			}),
+		),
+	})
+
+	installGit = task.FailOnFirstError("Install Git", []task.Task{
+		task.Check(
+			func() bool { return exec.Command("git", "version").Run() != nil },
+			"Git is already installed",
+		),
+		task.Conditional(
+			is32BitSystem,
+			task.Download(
+				`https://github.com/git-for-windows/git/releases/download/v2.6.1.windows.1/Git-2.6.1-32-bit.exe`,
+				userPath("Downloads", "git_installer.exe"),
+			),
+			task.Download(
+				`https://github.com/git-for-windows/git/releases/download/v2.6.1.windows.1/Git-2.6.1-64-bit.exe`,
+				userPath("Downloads", "git_installer.exe"),
+			),
+		),
+		task.Inform(`Choose
+    "Use Git from the Windows Command Prompt"
+and leave all other options on default.`),
+		task.RunProgram(userPath("Downloads", "git_installer.exe")),
+	})
+
+	installMercurial = task.Inform("TODO install Mercurial")
+
+	installSDL2 = task.Inform("TODO install SDL2")
+
+	installEverything = task.ContinueAfterError("Install Everything", []task.Task{
+		installGo,
+		installMinGW,
+		installGit,
+		installMercurial,
+		installSDL2,
+	})
+)
+
+func userPath(path ...string) string {
+	all := []string{os.Getenv("userprofile")}
+	for _, p := range path {
+		all = append(all, p)
+	}
+	return filepath.Join(all...)
+}
+
+func is32BitSystem() bool {
+	return runtime.GOARCH == "386" || runtime.GOARCH == "arm"
+}
+
+func mingw64binFolder() (bin string) {
+	root := `C:\Program Files\mingw-w64`
+	filepath.Walk(root, func(path string, _ os.FileInfo, _ error) error {
+		if path == root {
+			return nil
+		}
+		bin = path
+		return filepath.SkipDir
+	})
+	bin = filepath.Join(bin, "mingw64", "bin")
+	return
+}
+
+/*import (
 	"archive/tar"
 	"compress/gzip"
 	"errors"
@@ -15,6 +165,11 @@ import (
 	"runtime"
 	"strings"
 )
+
+// TODO run mingw-get to install GCC
+// simply run
+// mingw-get install gcc
+// after the MinGW32 installer has finished
 
 const (
 	go64URL            = `https://storage.googleapis.com/golang/go1.5.1.windows-amd64.msi`
@@ -166,8 +321,12 @@ func (r *ProgressReader) Read(b []byte) (n int, err error) {
 	return
 }
 
-func runProgram(path string) error {
-	return exec.Command("cmd", "/C", path).Run()
+func runProgram(path string, args ...string) error {
+	params := []string{"/C", path}
+	for _, arg := range args {
+		params = append(params, arg)
+	}
+	return exec.Command("cmd", params...).Run()
 }
 
 func createFolder(path string) error {
@@ -229,6 +388,7 @@ func installEverything() error {
 		installGo,
 		installMinGW,
 		installGit,
+		installSDL2,
 	}
 
 	for _, install := range installFuncs {
@@ -306,7 +466,7 @@ func installMinGW() error {
 
 	mingw32 := userPath("Downloads", "mingw32setup.exe")
 	startProgress("Copying MinGW Setup (32 Bit) to\n" + mingw32)
-	if err := ioutil.WriteFile(mingw32, mingwGetSetupExe[:], 0666); err != nil {
+	if err := ioutil.WriteFile(mingw32, mingwGetSetupExe, 0666); err != nil {
 		return err
 	}
 
@@ -314,6 +474,13 @@ func installMinGW() error {
 On the second page, uncheck support for the graphical user interface.`)
 	startProgress("Installing MinGW (32 Bit)")
 	if err := runProgram(mingw32); err != nil {
+		return err
+	}
+	stopProgress()
+
+	startProgress("Installing GCC C-Compiler from MinGW")
+	// TODO test if this actually works
+	if err := runProgram("mingw-get", "install", "gcc"); err != nil {
 		return err
 	}
 	stopProgress()
@@ -333,7 +500,7 @@ On the second page, uncheck support for the graphical user interface.`)
 	} else {
 		mingw64 := userPath("Downloads", "mingw64setup.exe")
 		startProgress("Copying MinGW Setup (64 Bit) to\n" + mingw64)
-		if err := ioutil.WriteFile(mingw64, mingwW64InstallExe[:], 0666); err != nil {
+		if err := ioutil.WriteFile(mingw64, mingwW64InstallExe, 0666); err != nil {
 			return err
 		}
 		stopProgress()
@@ -631,3 +798,5 @@ func isAlreadyInstalledError(err error) bool {
 	_, ok := err.(ErrAlreadyInstalled)
 	return ok
 }
+*/
+// 650 lines in original version

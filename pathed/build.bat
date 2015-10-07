@@ -1,0 +1,1 @@
+g++ -Os -o pathed.exe main.cpp registry.cpp util.cpp
