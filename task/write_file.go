@@ -1,17 +1,18 @@
 package task
 
 import (
+	"bytes"
 	"io"
 	"os"
 )
 
-func WriteFile(path string, r io.Reader) Task {
-	return &writeFile{path, r}
+func WriteFile(path string, data []byte) Task {
+	return &writeFile{path, data}
 }
 
 type writeFile struct {
 	path string
-	r    io.Reader
+	data []byte
 }
 
 func (t *writeFile) Name() string {
@@ -25,6 +26,6 @@ func (t *writeFile) Execute() error {
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, t.r)
+	_, err = io.Copy(file, bytes.NewReader(t.data))
 	return err
 }

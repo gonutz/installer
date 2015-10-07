@@ -1,10 +1,8 @@
 package task
 
 import (
-	"bytes"
-	"io"
-	"io/ioutil"
-	"os/exec"
+	"golang.org/x/sys/windows/registry"
+	"strings"
 )
 
 func AddToPathEnv(add string) Task {
@@ -20,52 +18,34 @@ func (t *addToPath) Name() string {
 }
 
 func (t *addToPath) Execute() error {
-	if len(pathedPath) == 0 {
-		if err := initPathed(); err != nil {
-			return err
+	k, err := registry.OpenKey(
+		registry.CURRENT_USER,
+		"Environment",
+		registry.ALL_ACCESS,
+	)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+
+	path, _, err := k.GetStringValue("PATH")
+	if err != nil {
+		return err
+	}
+
+	paths := strings.Split(path, ";")
+	for _, p := range paths {
+		// remove white space and quotes around path
+		p = strings.TrimSpace(p)
+		if strings.HasPrefix(p, `"`) && strings.HasSuffix(p, `"`) {
+			p = strings.TrimSuffix(p[1:], `"`)
+		}
+
+		if p == t.add {
+			// the path to be added is already there => we are done
+			return nil
 		}
 	}
 
-	return exec.Command("cmd", "/C", pathedPath, "-f", "-a", t.add).Run()
-
-	//path := os.Getenv("PATH")
-
-	//// check if the addition is already contained in the PATH
-	//if strings.Contains(path, ";"+t.add+";") || // in the middle?
-	//	strings.HasPrefix(path, t.add+";") || // at the start?
-	//	strings.HasSuffix(path, ";"+t.add) || // at the end?
-	//	path == t.add { // PATH only contains addition
-	//	return nil // if PATH contains it, we are done
-	//}
-
-	//newPath := path
-	//if newPath != "" {
-	//	newPath += ";"
-	//}
-	//newPath += t.add
-
-	//return exec.Command("setx", "PATH", newPath).Run()
-}
-
-var pathedPath string
-
-func initPathed() error {
-	tempDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		return err
-	}
-
-	file, err := ioutil.TempFile(tempDir, "pathed.exe")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, bytes.NewReader(pathedExe))
-	if err != nil {
-		return err
-	}
-
-	pathedPath = file.Name()
-	return nil
+	return k.SetStringValue("PATH", path+";"+t.add)
 }

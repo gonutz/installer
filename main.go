@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/gonutz/installer/task"
 	"os"
@@ -66,7 +65,7 @@ var (
 		),
 		task.WriteFile(
 			userPath("Downloads", "mingw32setup.exe"),
-			bytes.NewReader(mingwGetSetupExe),
+			mingwGetSetupExe,
 		),
 		task.Inform(`Please install into the default direcotry (C:\MinGW).
 On the second page, uncheck support for the graphical user interface.`),
@@ -81,7 +80,7 @@ On the second page, uncheck support for the graphical user interface.`),
 			task.FailOnFirstError("Installing MinGW (64 Bit)", []task.Task{
 				task.WriteFile(
 					userPath("Downloads", "mingw64setup.exe"),
-					bytes.NewReader(mingwW64InstallExe),
+					mingwW64InstallExe,
 				),
 				task.Inform("On the second page choose Architecture=x86_64"),
 				task.RunProgram(userPath("Downloads", "mingw64setup.exe")),
