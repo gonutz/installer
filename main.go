@@ -124,7 +124,7 @@ and leave all other options on default.`),
 			userPath(),
 		),
 		task.CreateShortcut(
-			userPath("liteidex23.2.windows", "liteide", "bin", "liteide.exe"),
+			userPath("liteide", "bin", "liteide.exe"),
 			userPath("Desktop"), "LiteIDE",
 		),
 	})
