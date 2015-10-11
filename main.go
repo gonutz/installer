@@ -106,7 +106,7 @@ On the second page, uncheck support for the graphical user interface.`),
 				userPath("git_installer.exe"),
 			),
 		),
-		task.Inform(`Choose
+		task.Inform(`In the installer choose
     "Use Git from the Windows Command Prompt"
 and leave all other options on default.`),
 		task.RunProgram(userPath("git_installer.exe")),
@@ -116,7 +116,7 @@ and leave all other options on default.`),
 
 	installLiteIDE = task.FailOnFirstError("Install LiteIDE", []task.Task{
 		task.Download(
-			`downloads.sourceforge.net/project/liteide/X23.2/liteidex23.2.windows.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fliteide%2Ffiles%2FX23.2%2F&ts=1444238477&use_mirror=skylink`,
+			`downloads.sourceforge.net/project/liteide/X23.2/liteidex23.2.windows.zip?r=&ts=1444591804&use_mirror=netassist`,
 			userPath("liteide23.2.zip"),
 		),
 		task.Unzip(
