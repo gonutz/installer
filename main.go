@@ -116,7 +116,7 @@ and leave all other options on default.`),
 
 	installLiteIDE = task.FailOnFirstError("Install LiteIDE", []task.Task{
 		task.Download(
-			`downloads.sourceforge.net/project/liteide/X23.2/liteidex23.2.windows.zip?r=&ts=1444591804&use_mirror=netassist`,
+			`http://downloads.sourceforge.net/project/liteide/X23.2/liteidex23.2.windows.zip?r=&ts=1444591804&use_mirror=netassist`,
 			userPath("liteide23.2.zip"),
 		),
 		task.Unzip(
