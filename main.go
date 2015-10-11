@@ -112,7 +112,24 @@ and leave all other options on default.`),
 		task.RunProgram(userPath("git_installer.exe")),
 	})
 
-	installMercurial = task.Inform("TODO install Mercurial")
+	installMercurial = task.FailOnFirstError("Install Mercurial", []task.Task{
+		task.Check(
+			func() bool { return exec.Command("hg", "version").Run() != nil },
+			"Mercurial is already installed",
+		),
+		task.Conditional(
+			is32BitSystem,
+			task.Download(
+				`http://bitbucket.org/tortoisehg/files/downloads/tortoisehg-3.5.2-x86.msi`,
+				userPath("hg_installer.msi"),
+			),
+			task.Download(
+				`http://bitbucket.org/tortoisehg/files/downloads/tortoisehg-3.5.2-x64.msi`,
+				userPath("hg_installer.msi"),
+			),
+		),
+		task.RunProgram(userPath("hg_installer.msi")),
+	})
 
 	installLiteIDE = task.FailOnFirstError("Install LiteIDE", []task.Task{
 		task.Download(
