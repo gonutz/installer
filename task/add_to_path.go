@@ -31,7 +31,11 @@ func (t *addToPath) Execute() error {
 
 	path, _, err := k.GetStringValue("PATH")
 	if err != nil {
-		return makeError("reading PATH variable", err)
+		if err == registry.ErrNotExist {
+			path = ""
+		} else {
+			return makeError("reading PATH variable", err)
+		}
 	}
 
 	paths := strings.Split(path, ";")
@@ -48,7 +52,12 @@ func (t *addToPath) Execute() error {
 		}
 	}
 
-	if err := k.SetStringValue("PATH", path+";"+t.add); err != nil {
+	newPath := path
+	if len(newPath) > 0 {
+		newPath += ";"
+	}
+	newPath += t.add
+	if err := k.SetStringValue("PATH", newPath); err != nil {
 		return makeError("setting PATH to new value", err)
 	}
 
