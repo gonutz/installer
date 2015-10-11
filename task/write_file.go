@@ -22,10 +22,10 @@ func (t *writeFile) Name() string {
 func (t *writeFile) Execute() error {
 	file, err := os.Create(t.path)
 	if err != nil {
-		return err
+		return makeError("creating file '"+t.path+"'", err)
 	}
 	defer file.Close()
 
 	_, err = io.Copy(file, bytes.NewReader(t.data))
-	return err
+	return makeError("copying data to file '"+file.Name()+"'", err)
 }

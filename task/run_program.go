@@ -23,8 +23,6 @@ func (t *runProgram) Execute() error {
 	for _, param := range t.params {
 		params = append(params, param)
 	}
-	if err := exec.Command("cmd", params...).Run(); err != nil {
-		return makeError("running program '"+strings.Join(params, " ")+"'", err)
-	}
-	return nil
+	err := exec.Command("cmd", params...).Run()
+	return makeError("running program '"+strings.Join(params, " ")+"'", err)
 }

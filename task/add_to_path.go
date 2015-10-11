@@ -57,9 +57,7 @@ func (t *addToPath) Execute() error {
 		newPath += ";"
 	}
 	newPath += t.add
-	if err := k.SetStringValue("PATH", newPath); err != nil {
-		return makeError("setting PATH to new value", err)
-	}
-
-	return nil
+	return makeError(
+		"setting PATH to new value",
+		k.SetStringValue("PATH", newPath))
 }
