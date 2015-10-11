@@ -15,7 +15,17 @@ func (t *setEnv) Name() string {
 }
 
 func (t *setEnv) Execute() error {
+	err := exec.Command("setx", t.name, t.value).Run()
+	if err == nil {
+		return nil
+	}
+
+	// SETX did not work so it might not exists, try another way
 	return makeError(
-		"running 'setx "+t.name+" "+t.value+"'",
-		exec.Command("setx", t.name, t.value).Run())
+		"setting environment variable "+t.name,
+		exec.Command("cmd", "/C", "reg", "add", `HKCU\Environment`,
+			"/v", t.name,
+			"/t", "REG_SZ",
+			"/d", t.value).Run(),
+	)
 }
