@@ -13,5 +13,8 @@ func (t *createFolder) Name() string {
 }
 
 func (t *createFolder) Execute() error {
-	return os.MkdirAll(t.path, 0666)
+	if err := os.MkdirAll(t.path, 0666); err != nil {
+		return makeError("creating folder '"+t.path+"'", err)
+	}
+	return nil
 }

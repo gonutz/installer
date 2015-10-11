@@ -1,6 +1,9 @@
 package task
 
-import "os/exec"
+import (
+	"os/exec"
+	"strings"
+)
 
 func RunProgram(path string, params ...string) Task {
 	return &runProgram{path, params}
@@ -20,5 +23,8 @@ func (t *runProgram) Execute() error {
 	for _, param := range t.params {
 		params = append(params, param)
 	}
-	return exec.Command("cmd", params...).Run()
+	if err := exec.Command("cmd", params...).Run(); err != nil {
+		return makeError("running program '"+strings.Join(params, " ")+"'", err)
+	}
+	return nil
 }

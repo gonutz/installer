@@ -23,13 +23,13 @@ func (t *download) Name() string {
 func (t *download) Execute() error {
 	resp, err := http.Get(t.url)
 	if err != nil {
-		return err
+		return makeError("getting URL '"+t.url+"'", err)
 	}
 	defer resp.Body.Close()
 
 	file, err := os.Create(t.path)
 	if err != nil {
-		return err
+		return makeError("creating file '"+t.path+"'", err)
 	}
 	defer file.Close()
 
@@ -38,7 +38,7 @@ func (t *download) Execute() error {
 			fmt.Printf("%v%%\b\b\b\b", int(100*progress+0.5))
 		})
 	_, err = io.Copy(file, r)
-	return err
+	return makeError("saving data to file", err)
 }
 
 // NewProgressReportingReader returns a reader that reports to the given

@@ -15,5 +15,8 @@ func (t *setEnv) Name() string {
 }
 
 func (t *setEnv) Execute() error {
-	return exec.Command("setx", t.name, t.value).Run()
+	if err := exec.Command("setx", t.name, t.value).Run(); err != nil {
+		return makeError("running 'setx "+t.name+" "+t.value+"'", err)
+	}
+	return nil
 }
