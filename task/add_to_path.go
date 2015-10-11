@@ -24,13 +24,14 @@ func (t *addToPath) Execute() error {
 		registry.ALL_ACCESS,
 	)
 	if err != nil {
-		return err
+		return makeError(
+			`opening registry key HKEY_CURRENT_USER path "Environment"`, err)
 	}
 	defer k.Close()
 
 	path, _, err := k.GetStringValue("PATH")
 	if err != nil {
-		return err
+		return makeError("reading PATH variable", err)
 	}
 
 	paths := strings.Split(path, ";")
@@ -47,5 +48,9 @@ func (t *addToPath) Execute() error {
 		}
 	}
 
-	return k.SetStringValue("PATH", path+";"+t.add)
+	if err := k.SetStringValue("PATH", path+";"+t.add); err != nil {
+		return makeError("setting PATH to new value", err)
+	}
+
+	return nil
 }

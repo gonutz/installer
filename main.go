@@ -15,8 +15,9 @@ func main() {
 			installGo,
 			installMinGW,
 			installGit,
-			installSDL2,
 			installMercurial,
+			installLiteIDE,
+			installSDL2,
 			installEverything,
 		}
 
@@ -38,7 +39,7 @@ func main() {
 var (
 	installGo = task.FailOnFirstError("Install Go", []task.Task{
 		task.Check(
-			func() bool { return exec.Command("go", "version").Run() != nil },
+			func() bool { return exec.Command("cmd", "/C", "go", "version").Run() != nil },
 			"Go is already installed",
 		),
 		task.Conditional(
@@ -117,6 +118,14 @@ and leave all other options on default.`),
 		task.Download(
 			`downloads.sourceforge.net/project/liteide/X23.2/liteidex23.2.windows.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fliteide%2Ffiles%2FX23.2%2F&ts=1444238477&use_mirror=skylink`,
 			userPath("Downloads", "liteide23.2.zip"),
+		),
+		task.Unzip(
+			userPath("Downloads", "liteide23.2.zip"),
+			userPath("Downloads"),
+		),
+		task.CreateShortcut(
+			userPath("Downloads", "liteidex23.2.windows", "liteide", "bin", "liteide.exe"),
+			userPath("Desktop", "LiteIDE.lnk"),
 		),
 	})
 
