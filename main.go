@@ -42,7 +42,7 @@ var (
 			func() bool { return exec.Command("cmd", "/C", "go", "version").Run() != nil },
 			"Go is already installed",
 		),
-		task.Conditional(
+		task.IfElse(
 			is32BitSystem,
 			task.Download(
 				`https://storage.googleapis.com/golang/go1.5.1.windows-386.msi`,
@@ -72,7 +72,7 @@ var (
 On the second page, uncheck support for the graphical user interface.`),
 		task.RunProgram(userPath("mingw32setup.exe")),
 		task.AddToPathEnv(`C:\MinGW\msys\1.0\bin`),
-		task.Conditional(
+		task.IfElse(
 			is32BitSystem,
 			task.FailOnFirstError("Installing GCC (32 Bit)", []task.Task{
 				task.AddToPathEnv(`C:\MinGW\bin`),
@@ -95,7 +95,7 @@ On the second page, uncheck support for the graphical user interface.`),
 			func() bool { return exec.Command("git", "version").Run() != nil },
 			"Git is already installed",
 		),
-		task.Conditional(
+		task.IfElse(
 			is32BitSystem,
 			task.Download(
 				`https://github.com/git-for-windows/git/releases/download/v2.6.1.windows.1/Git-2.6.1-32-bit.exe`,
@@ -117,7 +117,7 @@ and leave all other options on default.`),
 			func() bool { return exec.Command("hg", "version").Run() != nil },
 			"Mercurial is already installed",
 		),
-		task.Conditional(
+		task.IfElse(
 			is32BitSystem,
 			task.Download(
 				`http://bitbucket.org/tortoisehg/files/downloads/tortoisehg-3.5.2-x86.msi`,
@@ -146,7 +146,21 @@ and leave all other options on default.`),
 		),
 	})
 
-	installSDL2 = task.Inform("TODO install SDL2")
+	installSDL2 = task.FailOnFirstError("Install SDL2", []task.Task{
+		task.Download(
+			`https://www.libsdl.org/release/SDL2-devel-2.0.3-mingw.tar.gz`,
+			userPath("SDL2.tar.gz"),
+		),
+		task.UnTarGZ(
+			userPath("SDL2.tar.gz"),
+			userPath("SDL2"),
+		),
+		task.IfElse(
+			is32BitSystem,
+			task.Inform("TODO copy i686 SDL2 files"),
+			task.Inform("TODO copy x86_64 SDL2 files"),
+		),
+	})
 
 	installEverything = task.ContinueAfterError("Install Everything", []task.Task{
 		installGo,

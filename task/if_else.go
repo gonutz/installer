@@ -1,6 +1,6 @@
 package task
 
-func Conditional(condition func() bool, ifTask, elseTask Task) Task {
+func IfElse(condition func() bool, ifTask, elseTask Task) Task {
 	return &conditional{condition, ifTask, elseTask}
 }
 
